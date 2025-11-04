@@ -1,0 +1,14 @@
+{
+  "name": "ai-knowledge-assistant",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend start:dev",
+    "build": "pnpm -r build"
+  }
+}
