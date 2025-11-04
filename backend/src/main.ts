@@ -1,8 +1,26 @@
+// backend/src/main.ts
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common'; // 导入
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  await app.listen(process.env.PORT ?? 3000);
+
+  // 1. 启用 CORS
+  app.enableCors({
+    origin: 'http://localhost:3000', // 允许你的 Next.js 前端访问
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  });
+
+  // 2. (推荐) 启用全局验证管道
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+
+  // 3. 修改端口为 3001
+  await app.listen(3001);
+  console.log(`Application is running on: ${await app.getUrl()}`);
 }
-bootstrap();
+// The correct way: call bootstrap and catch any errors
+bootstrap().catch((err) => {
+  console.error('Application failed to start', err);
+  process.exit(1); // Exit with a failure code
+});
