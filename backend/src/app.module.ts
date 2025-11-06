@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm'; // 导入
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DocumentsModule } from './documents/documents.module';
+import { IngestionModule } from './ingestion/ingestion.module';
 
 @Module({
   imports: [
@@ -37,6 +38,8 @@ import { DocumentsModule } from './documents/documents.module';
     }),
 
     DocumentsModule,
+
+    IngestionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

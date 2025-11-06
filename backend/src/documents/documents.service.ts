@@ -5,10 +5,12 @@ import { Repository } from 'typeorm';
 import { Document } from './entities/document.entity';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { IngestionService } from '../ingestion/ingestion.service';
 
 @Injectable()
 export class DocumentsService {
   private supabase: SupabaseClient;
+  // private readonly logger = new Logger(DocumentsService.name);
 
   constructor(
     // 1. 注入 Document 仓库
@@ -16,11 +18,12 @@ export class DocumentsService {
     private documentsRepository: Repository<Document>,
     // 2. 注入 ConfigService 来读取 .env
     private configService: ConfigService,
+    private ingestionService: IngestionService,
   ) {
     // 3. 初始化 Supabase 客户端
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
     const supabaseKey = this.configService.get<string>('SUPABASE_KEY');
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
     this.supabase = createClient(supabaseUrl!, supabaseKey!);
   }
 
@@ -46,6 +49,12 @@ export class DocumentsService {
       status: 'UPLOADED', // 更新状态
     });
 
-    return this.documentsRepository.save(newDocument);
+    const savedDocument = await this.documentsRepository.save(newDocument);
+    this.ingestionService.ingestDocument(savedDocument).catch((err) => {
+      // this.logger.error(`Ingestion failed for doc ${savedDocument.id}`, err);
+      console.log(`Ingestion failed for doc ${savedDocument.id}`, err);
+    });
+
+    return savedDocument;
   }
 }

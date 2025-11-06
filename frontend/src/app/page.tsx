@@ -46,7 +46,7 @@ export default function HomePage() {
 
     try {
       // 2. 调用后端 API
-      const response = await fetch('http://localhost:3001/api/documents/upload', {
+      const response = await fetch('http://127.0.0.1:5050/api/documents/upload', {
         method: 'POST',
         body: formData
         // 注意：使用 FormData 时，浏览器会自动设置 Content-Type，

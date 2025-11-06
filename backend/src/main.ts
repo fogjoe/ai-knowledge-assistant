@@ -8,15 +8,21 @@ async function bootstrap() {
 
   // 1. 启用 CORS
   app.enableCors({
-    origin: 'http://localhost:3000', // 允许你的 Next.js 前端访问
+    origin: [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://[::1]:3000',
+    ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true, // ✅ if your frontend uses cookies or auth headers
   });
 
   // 2. (推荐) 启用全局验证管道
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 
-  // 3. 修改端口为 3001
-  await app.listen(3001);
+  // 3. 修改端口为 5050
+  await app.listen(5050, '127.0.0.1');
   console.log(`Application is running on: ${await app.getUrl()}`);
 }
 // The correct way: call bootstrap and catch any errors
