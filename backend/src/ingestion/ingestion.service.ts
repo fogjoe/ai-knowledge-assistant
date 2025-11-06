@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Document } from '../documents/entities/document.entity';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
+import { OpenAIEmbeddings } from '@langchain/openai';
+import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase';
 
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -12,12 +14,20 @@ import * as path from 'path';
 export class IngestionService {
   private readonly logger = new Logger(IngestionService.name);
   private supabase: SupabaseClient;
+  private embeddings: OpenAIEmbeddings; // ✨ 新增：向量化实例
 
   constructor(private configService: ConfigService) {
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
     const supabaseKey = this.configService.get<string>('SUPABASE_KEY');
+    const openaiApiKey = this.configService.get<string>('OPENAI_API_KEY'); // ✨ 获取 OpenAI Key
 
     this.supabase = createClient(supabaseUrl!, supabaseKey!);
+
+    // ✨ 初始化 OpenAIEmbeddings
+    this.embeddings = new OpenAIEmbeddings({
+      apiKey: openaiApiKey,
+      model: 'text-embedding-ada-002', // 最常用的嵌入模型
+    });
   }
 
   async ingestDocument(document: Document) {
@@ -69,7 +79,31 @@ export class IngestionService {
       const chunks = await splitter.splitDocuments(docs);
       this.logger.log(`Document split into ${chunks.length} chunks.`);
 
-      // TODO: P3.3 和 P3.4 将在这里继续执行
+      // --- P3.3 & P3.4: 向量化和存储到 pg_vector ---
+
+      // 7. 为每个 chunk 添加元数据
+      const chunksWithMetadata = chunks.map((chunk) => {
+        // 确保每个 chunk 都有 document 的 ID 作为元数据
+        chunk.metadata.documentId = document.id;
+        chunk.metadata.source = document.file_name;
+        // 移除不必要的 metadata，例如 PDFLoader 留下的 loc 信息
+        delete chunk.metadata.loc;
+        return chunk;
+      });
+
+      // 8. 存储到 Supabase Vector Store
+      await SupabaseVectorStore.fromDocuments(
+        chunksWithMetadata, // 文本块和元数据
+        this.embeddings, // OpenAI 向量化器
+        {
+          client: this.supabase,
+          tableName: 'vectors', // Supabase 中存储向量的表名 (你需要提前创建)
+          queryName: 'match_documents', // Supabase 中用于检索的函数名 (后续 P4 会创建)
+        },
+      );
+      this.logger.log(
+        `Successfully embedded and stored ${chunks.length} chunks into Supabase.`,
+      );
 
       // 7. 清理临时文件
       await fs.unlink(tempFilePath);
@@ -96,8 +130,6 @@ export class IngestionService {
       } catch (err) {
         console.log('error deleting temp file:', err);
       }
-      // ⚠️ 更好：删除整个临时目录
-      // try { await fs.rmdir(tempDir, { recursive: true }); } catch {} // 如果你想删除整个目录
     }
   }
 }
