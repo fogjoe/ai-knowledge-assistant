@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useState } from 'react'
 
 interface UploadedDocument {
@@ -13,6 +14,13 @@ interface UploadedDocument {
   created_at: string
 }
 
+interface Message {
+  id: number
+  sender: 'user' | 'ai'
+  text: string
+  sources?: any[] // 用于存储 AI 回复的来源
+}
+
 export default function HomePage() {
   // 1. 跟踪用户选择的文件
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -20,6 +28,11 @@ export default function HomePage() {
   const [uploadStatus, setUploadStatus] = useState<string>('')
   // 3. (可选) 跟踪文档列表
   const [documents, setDocuments] = useState<UploadedDocument[]>([]) // 暂时用 any
+
+  // --- P4 的 State ---
+  const [messages, setMessages] = useState<Message[]>([])
+  const [currentQuery, setCurrentQuery] = useState<string>('')
+  const [isLoading, setIsLoading] = useState<boolean>(false)
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -75,6 +88,53 @@ export default function HomePage() {
     }
   }
 
+  // --- P4 的核心函数 ---
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!currentQuery || isLoading) return
+
+    setIsLoading(true)
+    const userMessage: Message = {
+      id: Date.now(),
+      sender: 'user',
+      text: currentQuery
+    }
+    setMessages(prev => [...prev, userMessage])
+    setCurrentQuery('')
+
+    try {
+      // 调用 P4 后端 API
+      const response = await fetch('http://127.0.0.1:5050/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: userMessage.text })
+      })
+
+      if (!response.ok) {
+        throw new Error('AI 响应失败')
+      }
+
+      const aiData = await response.json()
+
+      const aiMessage: Message = {
+        id: Date.now() + 1,
+        sender: 'ai',
+        text: aiData.answer,
+        sources: aiData.sourceDocuments
+      }
+      setMessages(prev => [...prev, aiMessage])
+    } catch (error: any) {
+      const errorMessage: Message = {
+        id: Date.now() + 1,
+        sender: 'ai',
+        text: `抱歉，处理您的请求时出错: ${error.message}`
+      }
+      setMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* 左侧栏：文档管理区 */}
@@ -105,34 +165,61 @@ export default function HomePage() {
           </CardContent>
         </Card>
 
-        {/* 文档列表 (Mock 数据) */}
-        <div className="space-y-2">
-          {documents.map(doc => (
-            <div key={doc.id} className="p-2 border rounded cursor-pointer hover:bg-gray-100">
-              ✅ {doc.file_name}
-            </div>
-          ))}
-          <div className="p-2 border rounded cursor-pointer hover:bg-gray-100">✅ 2024 产品手册.pdf</div>
-          <div className="p-2 border rounded cursor-pointer hover:bg-gray-100">✅ 售后支持文档.txt</div>
-          <div className="p-2 border rounded cursor-pointer bg-blue-50 text-blue-700">💬 与《产品手册》对话</div>
-        </div>
+        <h3 className="text-lg font-semibold mb-2">已上传文档</h3>
+        <ScrollArea className="flex-1">
+          <div className="space-y-2">
+            {documents.map(doc => (
+              <div key={doc.id} className="p-2 border rounded cursor-pointer hover:bg-gray-100 text-sm">
+                ✅ {doc.file_name}
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
       </aside>
 
-      {/* 右侧：聊天主界面 */}
-      <main className="flex-1 flex flex-col">
+      {/* 右侧：聊天主界面 (更新) */}
+      <main className="flex-1 flex flex-col h-screen">
         {/* 聊天历史区 */}
-        <div className="flex-1 p-6 overflow-y-auto bg-gray-100">
-          {/* 这里未来会渲染聊天消息 */}
-          <p className="text-center text-gray-500 mt-10">欢迎使用 AI 知识库助手，请选择左侧文档开始提问。</p>
-        </div>
+        <ScrollArea className="flex-1 p-6 bg-gray-100">
+          <div className="space-y-4">
+            {messages.map(msg => (
+              <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`p-3 rounded-lg max-w-lg ${msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-white text-black shadow-sm'}`}>
+                  <p>{msg.text}</p>
+                  {/* (可选) 显示 AI 回复的来源 */}
+                  {msg.sender === 'ai' && msg.sources && msg.sources.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-gray-300">
+                      <h4 className="text-xs font-bold mb-1">参考来源:</h4>
+                      <ul className="list-disc pl-4">
+                        {msg.sources.map((src, index) => (
+                          <li key={index} className="text-xs truncate" title={src.contentPreview}>
+                            {src.source}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="p-3 rounded-lg bg-white text-black shadow-sm">
+                  <p>AI 正在思考中...</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
 
         {/* 输入区 */}
         <div className="p-4 border-t bg-white">
-          <div className="flex gap-2">
-            <Input placeholder="输入您的问题..." className="flex-1" />
-            <Button>发送</Button>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">当前对话基于：2024 产品手册.pdf</p>
+          <form onSubmit={handleChatSubmit} className="flex gap-2">
+            <Input placeholder="基于您上传的文档提问..." className="flex-1" value={currentQuery} onChange={e => setCurrentQuery(e.target.value)} disabled={isLoading} />
+            <Button type="submit" disabled={isLoading || !currentQuery}>
+              {isLoading ? '发送中...' : '发送'}
+            </Button>
+          </form>
         </div>
       </main>
     </div>
