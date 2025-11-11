@@ -6,6 +6,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DocumentsModule } from './documents/documents.module';
 import { IngestionModule } from './ingestion/ingestion.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -40,6 +41,8 @@ import { IngestionModule } from './ingestion/ingestion.module';
     DocumentsModule,
 
     IngestionModule,
+
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
