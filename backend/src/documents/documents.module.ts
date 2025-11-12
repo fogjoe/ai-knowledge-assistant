@@ -9,10 +9,11 @@ import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    // 这里注册 Document Entity 实体
     TypeOrmModule.forFeature([Document]),
     ConfigModule,
     IngestionModule,
-  ], // 在此模块注册 Entity
+  ],
   controllers: [DocumentsController],
   providers: [DocumentsService],
 })

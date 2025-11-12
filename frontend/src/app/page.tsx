@@ -5,6 +5,10 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
 interface UploadedDocument {
   id: number
@@ -81,7 +85,6 @@ export default function HomePage() {
       setDocuments([...documents, result.document])
 
       console.log('上传结果:', result)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('上传出错:', error)
       setUploadStatus(`上传失败: ${error.message}`)
@@ -180,12 +183,48 @@ export default function HomePage() {
       {/* 右侧：聊天主界面 (更新) */}
       <main className="flex-1 flex flex-col h-screen">
         {/* 聊天历史区 */}
-        <ScrollArea className="flex-1 p-6 bg-gray-100">
+        <ScrollArea className="flex-1 p-6 bg-gray-100 h-[calc(100vh-150px)]">
           <div className="space-y-4">
             {messages.map(msg => (
               <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`p-3 rounded-lg max-w-lg ${msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-white text-black shadow-sm'}`}>
-                  <p>{msg.text}</p>
+                  {msg.sender === 'user' ? (
+                    <p>{msg.text}</p> // 用户消息保持简单
+                  ) : (
+                    <article className="prose prose-sm p-3 max-w-none">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          code(props) {
+                            // We destructure `ref` and `node` to remove them from `...rest`
+                            // We also add `inline` to check if it's a code block or inline code
+                            const { ref, className, children, ...rest } = props
+                            const match = /language-(\w+)/.exec(className || '')
+
+                            return match ? (
+                              <SyntaxHighlighter
+                                {...rest} // `...rest` is now safe, as `ref` and `node` are excluded
+                                style={vscDarkPlus}
+                                language={match[1]}
+                                PreTag="div"
+                              >
+                                {String(children).replace(/\n$/, '')}
+                              </SyntaxHighlighter>
+                            ) : (
+                              // For inline code or code without a language, we pass the ref
+                              // back to the `code` element where it belongs.
+                              <code ref={ref} className={className} {...rest}>
+                                {children}
+                              </code>
+                            )
+                          }
+                          // --- 👆 UPDATE ENDS HERE ---
+                        }}
+                      >
+                        {msg.text}
+                      </ReactMarkdown>
+                    </article>
+                  )}
                   {/* (可选) 显示 AI 回复的来源 */}
                   {msg.sender === 'ai' && msg.sources && msg.sources.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-gray-300">
